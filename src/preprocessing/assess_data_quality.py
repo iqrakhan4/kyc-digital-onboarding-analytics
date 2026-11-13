@@ -20,7 +20,9 @@ IDENTIFIER_PATTERN = re.compile(
 )
 
 TIMESTAMP_PATTERN = re.compile(
-    r"timestamp|created.?at|event.?time|date|time",
+    r"(^@?timestamp$|created_at|event_time|"
+    r"transaction_start_timestamp|updated_at|"
+    r"started_at|completed_at|_date$)",
     re.IGNORECASE,
 )
 
@@ -71,9 +73,10 @@ def assess_file(file_path):
             # Check likely date/time columns
             if TIMESTAMP_PATTERN.search(str(column)):
                 parsed = pd.to_datetime(
-                    series,
-                    errors="coerce",
-                    utc=True,
+                series,
+                errors="coerce",
+                utc=True,
+                format="mixed",
                 )
 
                 invalid_count = int(
