@@ -1,4 +1,3 @@
-cat > .gitignore <<'EOF'
 # Python
 __pycache__/
 *.py[cod]
@@ -27,6 +26,9 @@ data/processed/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
 
+# Local dataset configuration
+config/dataset_manifest.local.json
+
 # Generated files
 *.log
 *.tmp
@@ -40,8 +42,4 @@ data/processed/*
 Thumbs.db
 
 # Power BI temporary files
-*.tmp
-EOF
-
-touch data/raw/.gitkeep
-touch data/processed/.gitkeep
+*.pbix~
