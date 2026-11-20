@@ -1,0 +1,41 @@
+{
+  "_comment": "Copy to config/dataset_manifest.local.json (git-ignored) and replace 'file' with your local CSV filenames inside data/raw/.",
+  "datasets": [
+    {
+      "name": "feb_api_events",
+      "display_name": "Feb API events",
+      "file": "REPLACE_ME_api_events.csv",
+      "id_column": "transaction_id"
+    },
+    {
+      "name": "feb_successful_transactions",
+      "display_name": "Feb successful transactions",
+      "file": "REPLACE_ME_successful_transactions.csv",
+      "id_column": "transaction_id"
+    },
+    {
+      "name": "feb_missing_events",
+      "display_name": "Feb missing-event extract",
+      "file": "REPLACE_ME_missing_events.csv",
+      "id_column": "transaction_id"
+    },
+    {
+      "name": "feb_remaining_events",
+      "display_name": "Feb remaining-event extract",
+      "file": "REPLACE_ME_remaining_events.csv",
+      "id_column": "transaction_id"
+    },
+    {
+      "name": "feb_doc_verification_events",
+      "display_name": "Feb document-verification events",
+      "file": "REPLACE_ME_document_verification_events.csv",
+      "id_column": "transaction_id"
+    },
+    {
+      "name": "march_onboarding",
+      "display_name": "March onboarding transactions",
+      "file": "REPLACE_ME_onboarding_transactions.csv",
+      "id_column": "transaction_id"
+    }
+  ]
+}

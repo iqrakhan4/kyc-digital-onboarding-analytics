@@ -1,0 +1,14 @@
+{
+  "_comment": "Maps substrings of the raw 'last_executed_module' value to a generic, public-safe stage label. First match wins. Copy to config/stage_mapping.local.json (git-ignored) to add provider-specific keywords without publishing them.",
+  "rules": [
+    {"keyword": "geolocation",           "stage": "Location check"},
+    {"keyword": "document_verification", "stage": "Document verification"},
+    {"keyword": "id_card",               "stage": "ID card capture"},
+    {"keyword": "selfie",                "stage": "Selfie capture"},
+    {"keyword": "face_match",            "stage": "Face match"},
+    {"keyword": "countrypicker",         "stage": "Country selection"},
+    {"keyword": "form",                  "stage": "Data-entry form"}
+  ],
+  "default_stage": "Other",
+  "missing_stage": "No stage recorded"
+}

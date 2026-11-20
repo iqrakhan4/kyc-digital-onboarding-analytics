@@ -1,0 +1,21 @@
+{
+  "name": "KYC Onboarding Analytics",
+  "dataColors": [
+    "#2E8B6E", "#C8553D", "#E3A13A", "#9AA5B1", "#7B5EA7",
+    "#1F5F8B", "#5FA3C7", "#6B7785"
+  ],
+  "background": "#FFFFFF",
+  "foreground": "#1F2933",
+  "tableAccent": "#1F5F8B",
+  "good": "#2E8B6E",
+  "neutral": "#E3A13A",
+  "bad": "#C8553D",
+  "maximum": "#1F5F8B",
+  "center": "#E3A13A",
+  "minimum": "#EEF3F8",
+  "textClasses": {
+    "title": { "fontFace": "Segoe UI Semibold", "fontSize": 14, "color": "#1F2933" },
+    "label": { "fontFace": "Segoe UI", "fontSize": 10, "color": "#6B7785" },
+    "callout": { "fontFace": "Segoe UI Semibold", "fontSize": 28, "color": "#1F2933" }
+  }
+}

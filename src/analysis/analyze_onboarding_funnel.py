@@ -1,18 +1,42 @@
+"""Onboarding funnel analysis (outcome, source and platform summaries).
 
+Run from the project root::
+
+    python -m src.analysis.analyze_onboarding_funnel                 # real data
+    python -m src.analysis.analyze_onboarding_funnel --source synthetic
+
+Only aggregate summaries are exported; no transaction identifiers are written.
+"""
+
+from __future__ import annotations
+
+import argparse
 from pathlib import Path
 
 import pandas as pd
 
-
-ROOT = Path(__file__).resolve().parents[2]
-RAW_DIR = ROOT / "data" / "raw"
-OUTPUT_DIR = ROOT / "data" / "processed"
+from src.config import (
+    PROCESSED_DIR as OUTPUT_DIR,
+    RAW_DIR,
+    SYNTHETIC_ONBOARDING_FILE,
+)
 
 REQUIRED_COLUMNS = [
     "transaction_id",
     "status",
     "source",
     "platform",
+]
+
+# Optional columns used by the behaviour / drop-off analysis.
+OPTIONAL_COLUMNS = [
+    "created_at",
+    "event_time",
+    "transaction_start_timestamp",
+    "last_executed_module",
+    "sdk_version",
+    "time_spent",
+    "total_transaction_updates",
 ]
 
 EXPECTED_STATUSES = {
@@ -36,8 +60,37 @@ DECLINED_STATUSES = {
     "manually_declined",
 }
 
-def load_onboarding_data():
-    """Load and validate the March transaction-level dataset."""
+# Business-friendly grouping of the eight raw statuses.
+OUTCOME_GROUPS = {
+    "auto_approved": "Approved",
+    "manually_approved": "Approved",
+    "auto_declined": "Declined",
+    "manually_declined": "Declined",
+    "user_cancelled": "Cancelled by user",
+    "started": "No completion recorded",
+    "error": "Error / needs review",
+    "needs_review": "Error / needs review",
+}
+
+OUTCOME_ORDER = [
+    "Approved",
+    "Declined",
+    "Cancelled by user",
+    "No completion recorded",
+    "Error / needs review",
+]
+
+
+def add_outcome_group(df):
+    """Return a copy of ``df`` with an ``outcome_group`` column."""
+
+    result = df.copy()
+    result["outcome_group"] = result["status"].map(OUTCOME_GROUPS)
+    return result
+
+
+def _locate_onboarding_file():
+    """Find the single raw March onboarding extract."""
 
     matching_files = sorted(
         RAW_DIR.glob("query_result_2026-05-12*.csv")
@@ -49,23 +102,48 @@ def load_onboarding_data():
             f"Found: {len(matching_files)}"
         )
 
-    df = pd.read_csv(
-        matching_files[0],
-        usecols=REQUIRED_COLUMNS,
-        low_memory=False,
-    )
+    return matching_files[0]
+
+
+def load_onboarding_data(path=None, extra_columns=(), verbose=True):
+    """Load and validate the transaction-level onboarding dataset.
+
+    Parameters
+    ----------
+    path:
+        CSV to load. Defaults to the private March extract in ``data/raw``.
+    extra_columns:
+        Additional columns to load *if present* in the file.
+    verbose:
+        Print basic load statistics.
+    """
+
+    file_path = Path(path) if path else _locate_onboarding_file()
+
+    header = pd.read_csv(file_path, nrows=0).columns
 
     missing_columns = [
         column
         for column in REQUIRED_COLUMNS
-        if column not in df.columns
+        if column not in header
     ]
 
     if missing_columns:
         raise ValueError(
             f"Missing required columns: {missing_columns}"
         )
-        
+
+    usecols = REQUIRED_COLUMNS + [
+        column
+        for column in extra_columns
+        if column in header and column not in REQUIRED_COLUMNS
+    ]
+
+    df = pd.read_csv(
+        file_path,
+        usecols=usecols,
+        low_memory=False,
+    )
 
     if df["transaction_id"].isna().any():
         raise ValueError("Transaction IDs contain missing values.")
@@ -80,7 +158,7 @@ def load_onboarding_data():
         raise ValueError(
             "Status or source contains missing values."
         )
-        
+
     observed_statuses = set(df["status"].unique())
     unexpected_statuses = observed_statuses - EXPECTED_STATUSES
 
@@ -99,8 +177,9 @@ def load_onboarding_data():
         .fillna("missing")
     )
 
-    print(f"Loaded transactions: {len(df):,}")
-    print("Unique transaction IDs:", df["transaction_id"].nunique())
+    if verbose:
+        print(f"Loaded transactions: {len(df):,}")
+        print("Unique transaction IDs:", df["transaction_id"].nunique())
 
     return df
 
@@ -297,38 +376,39 @@ def build_kpi_summary(df):
         columns=["metric", "value", "unit"],
     )
 
-def main():
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+def build_all_summaries(df):
+    """Return every funnel summary keyed by its output filename."""
+
+    return {
+        "onboarding_status_summary.csv": build_status_summary(df),
+        "source_status_summary.csv": build_source_status_summary(df),
+        "platform_status_summary.csv": build_platform_status_summary(df),
+        "onboarding_kpi_summary.csv": build_kpi_summary(df),
+        "automated_platform_summary.csv": (
+            build_automated_platform_summary(df)
+        ),
+    }
+
+
+def main(source="real", output_dir=None):
+    output_dir = Path(output_dir) if output_dir else OUTPUT_DIR
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     print("=" * 70)
     print("ONBOARDING FUNNEL ANALYSIS")
     print("=" * 70)
 
-    df = load_onboarding_data()
+    path = SYNTHETIC_ONBOARDING_FILE if source == "synthetic" else None
+    df = load_onboarding_data(path=path)
 
-    summaries = {
-    "onboarding_status_summary.csv":
-        build_status_summary(df),
-
-    "source_status_summary.csv":
-        build_source_status_summary(df),
-
-    "platform_status_summary.csv":
-        build_platform_status_summary(df),
-
-    "onboarding_kpi_summary.csv":
-        build_kpi_summary(df),
-        
-    "automated_platform_summary.csv":
-        build_automated_platform_summary(df),
-    }
+    summaries = build_all_summaries(df)
 
     print("\n" + "=" * 70)
     print("GENERATED ANALYTICAL SUMMARIES")
     print("=" * 70)
 
     for filename, summary in summaries.items():
-        output_file = OUTPUT_DIR / filename
+        output_file = output_dir / filename
 
         summary.to_csv(output_file, index=False)
 
@@ -341,4 +421,15 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--source",
+        choices=["real", "synthetic"],
+        default="real",
+    )
+    args = parser.parse_args()
+
+    out = (
+        OUTPUT_DIR / "synthetic" if args.source == "synthetic" else None
+    )
+    main(source=args.source, output_dir=out)

@@ -1,15 +1,20 @@
-import json
+"""Transaction-level dataset reconciliation.
+
+Compares transaction identifiers across extracts *without exporting or
+displaying any identifier*. Only counts and percentages are written.
+
+    python -m src.analysis.reconcile_datasets
+"""
+
 from itertools import combinations
-from pathlib import Path
 
 import pandas as pd
 
-
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-
-MANIFEST_PATH = PROJECT_ROOT / "config" / "dataset_manifest.local.json"
-RAW_DIR = PROJECT_ROOT / "data" / "raw"
-OUTPUT_DIR = PROJECT_ROOT / "data" / "processed"
+from src.config import (
+    PROCESSED_DIR as OUTPUT_DIR,
+    RAW_DIR,
+    load_manifest,
+)
 
 
 def load_dataset(dataset_config):
@@ -86,14 +91,7 @@ def calculate_overlaps(dataset_ids):
 def main():
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    if not MANIFEST_PATH.exists():
-        raise FileNotFoundError(
-            "Local manifest not found. Create config/"
-            "dataset_manifest.local.json first."
-        )
-
-    with open(MANIFEST_PATH, encoding="utf-8") as file:
-        manifest = json.load(file)
+    manifest = load_manifest()
 
     dataset_summaries = []
     dataset_ids = {}

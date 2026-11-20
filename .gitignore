@@ -4,6 +4,8 @@ __pycache__/
 *.so
 .pytest_cache/
 .mypy_cache/
+.ruff_cache/
+*.egg-info/
 
 # Virtual environments
 .venv/
@@ -20,14 +22,23 @@ env/
 *.pem
 *.key
 
-# Private and raw datasets
+# Private, raw and generated data.
+# Only the .gitkeep placeholders are tracked.
 data/raw/*
 data/processed/*
+data/synthetic/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
+!data/synthetic/.gitkeep
 
-# Local dataset configuration
-config/dataset_manifest.local.json
+# Local configuration (may reference private filenames / provider keywords).
+# Committed templates use the *.example.json suffix instead.
+config/*.local.*
+
+# Generated databases
+*.db
+*.sqlite
+*.sqlite3
 
 # Generated files
 *.log
@@ -40,6 +51,10 @@ config/dataset_manifest.local.json
 # OS
 .DS_Store
 Thumbs.db
+*:Zone.Identifier
 
-# Power BI temporary files
+# Power BI: dashboards built from REAL data must never be committed.
+# Name them *_real.pbix. A *_synthetic.pbix built from demo data may be committed.
 *.pbix~
+powerbi/*_real.pbix
+powerbi/*.pbit

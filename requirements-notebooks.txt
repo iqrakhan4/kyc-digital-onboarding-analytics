@@ -1,0 +1,5 @@
+# Extra dependencies for running/editing the notebooks.
+# Install with:  pip install -r requirements-notebooks.txt
+-r requirements.txt
+jupyterlab>=4.0
+ipykernel>=6.29

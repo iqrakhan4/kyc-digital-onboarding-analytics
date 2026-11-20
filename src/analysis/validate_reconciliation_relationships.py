@@ -1,21 +1,34 @@
+"""Validate relationships between the unmatched-ID groups.
 
-from pathlib import Path
+Prints aggregate statistics only.
+
+    python -m src.analysis.validate_reconciliation_relationships
+"""
+
 import pandas as pd
 
-ROOT = Path(__file__).resolve().parents[2]
-RAW = ROOT / "data" / "raw"
+from src.config import dataset_file, load_manifest
 
-FILES = {
-    "api": "February API hits.csv",
-    "missing": "feb missing.csv",
-    "digi": "Feb Digi Hits.csv",
-    "march": "query_result_2026-05-12T16_00_44.770167981+05_30.csv",
+DATASETS = {
+    "api": "feb_api_events",
+    "missing": "feb_missing_events",
+    "doc": "feb_doc_verification_events",
+    "march": "march_onboarding",
 }
+
+_MANIFEST = None
+
+
+def _path(name):
+    global _MANIFEST
+    if _MANIFEST is None:
+        _MANIFEST = load_manifest()
+    return dataset_file(_MANIFEST, DATASETS[name])
 
 
 def load_ids(name):
     df = pd.read_csv(
-        RAW / FILES[name],
+        _path(name),
         usecols=["transaction_id"],
         dtype={"transaction_id": "string"},
         low_memory=False,
@@ -30,26 +43,26 @@ def load_ids(name):
 
 
 def load_cross_period_data():
-    digi = pd.read_csv(
-        RAW / FILES["digi"],
+    doc = pd.read_csv(
+        _path("doc"),
         usecols=["transaction_id", "event_time"],
         dtype={"transaction_id": "string"},
         low_memory=False,
     )
 
     march = pd.read_csv(
-        RAW / FILES["march"],
+        _path("march"),
         usecols=["transaction_id", "created_at", "event_time"],
         dtype={"transaction_id": "string"},
         low_memory=False,
     )
 
-    for df in [digi, march]:
+    for df in [doc, march]:
         df["transaction_id"] = df["transaction_id"].str.strip()
 
     for col in ["event_time"]:
-        digi[col] = pd.to_datetime(
-            digi[col], errors="coerce", utc=True, format="mixed"
+        doc[col] = pd.to_datetime(
+            doc[col], errors="coerce", utc=True, format="mixed"
         )
 
     for col in ["created_at", "event_time"]:
@@ -57,7 +70,7 @@ def load_cross_period_data():
             march[col], errors="coerce", utc=True, format="mixed"
         )
 
-    return digi, march
+    return doc, march
 
 
 def main():
@@ -67,27 +80,27 @@ def main():
 
     api_ids = load_ids("api")
     missing_ids = load_ids("missing")
-    digi_ids = load_ids("digi")
+    doc_ids = load_ids("doc")
 
-    api_not_digi = api_ids - digi_ids
+    api_not_doc = api_ids - doc_ids
     missing_not_api = missing_ids - api_ids
 
-    shared = api_not_digi & missing_not_api
+    shared = api_not_doc & missing_not_api
 
     print("\n1. COMPARING THE TWO UNMATCHED GROUPS")
     print("-" * 45)
-    print("API absent from Digi:", len(api_not_digi))
+    print("API absent from doc-verification:", len(api_not_doc))
     print("Missing absent from API:", len(missing_not_api))
     print("IDs shared by both groups:", len(shared))
-    print("Only in API absent from Digi:", len(api_not_digi - missing_not_api))
-    print("Only in Missing absent from API:", len(missing_not_api - api_not_digi))
+    print("Only in API absent from doc-verification:", len(api_not_doc - missing_not_api))
+    print("Only in Missing absent from API:", len(missing_not_api - api_not_doc))
 
-    union = api_not_digi | missing_not_api
+    union = api_not_doc | missing_not_api
     jaccard = len(shared) / len(union) if union else 0
 
     print(f"Jaccard similarity: {jaccard:.4f}")
 
-    if api_not_digi == missing_not_api:
+    if api_not_doc == missing_not_api:
         print("RESULT: Both unmatched groups contain exactly the same IDs.")
     else:
         print("RESULT: The unmatched groups are different.")
@@ -95,7 +108,7 @@ def main():
     print("\n2. CROSS-PERIOD DATE COMPARISON")
     print("-" * 45)
 
-    digi, march = load_cross_period_data()
+    doc, march = load_cross_period_data()
 
     march_ids = set(
         march["transaction_id"].dropna().loc[
@@ -103,15 +116,15 @@ def main():
         ].unique()
     )
 
-    cross_ids = digi_ids & march_ids
+    cross_ids = doc_ids & march_ids
 
-    digi_match = digi[digi["transaction_id"].isin(cross_ids)]
+    doc_match = doc[doc["transaction_id"].isin(cross_ids)]
     march_match = march[march["transaction_id"].isin(cross_ids)]
 
-    digi_dates = (
-        digi_match.groupby("transaction_id")["event_time"]
+    doc_dates = (
+        doc_match.groupby("transaction_id")["event_time"]
         .min()
-        .rename("digi_first_event")
+        .rename("doc_first_event")
     )
 
     march_dates = (
@@ -122,20 +135,20 @@ def main():
         )
     )
 
-    comparison = pd.concat([digi_dates, march_dates], axis=1).dropna()
+    comparison = pd.concat([doc_dates, march_dates], axis=1).dropna()
 
     print("Cross-period unique IDs:", len(cross_ids))
     print("IDs with comparable timestamps:", len(comparison))
 
     if not comparison.empty:
-        comparison["created_minus_digi_days"] = (
+        comparison["created_minus_doc_days"] = (
             comparison["march_created_at"]
-            - comparison["digi_first_event"]
+            - comparison["doc_first_event"]
         ).dt.total_seconds() / 86400
 
-        delta = comparison["created_minus_digi_days"]
+        delta = comparison["created_minus_doc_days"]
 
-        print("\nMarch created_at minus February Digi first event:")
+        print("\nMarch created_at minus February document-verification first event:")
         print(f"Minimum days: {delta.min():.2f}")
         print(f"Median days: {delta.median():.2f}")
         print(f"Maximum days: {delta.max():.2f}")

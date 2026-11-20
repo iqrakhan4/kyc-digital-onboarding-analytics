@@ -1,24 +1,30 @@
-from pathlib import Path
+"""Investigate transaction IDs that appear in one extract but not another.
+
+Only aggregate statistics are printed; identifiers are never displayed.
+Dataset filenames come from the local manifest, never from this file.
+
+    python -m src.analysis.investigate_unmatched_transactions
+"""
 
 import pandas as pd
 
+from src.config import PROCESSED_DIR as OUTPUT, dataset_file, load_manifest
 
-ROOT = Path(__file__).resolve().parents[2]
-RAW = ROOT / "data" / "raw"
-OUTPUT = ROOT / "data" / "processed"
-
-FILES = {
-    "api": "February API hits.csv",
-    "successful": "February successful transactions.csv",
-    "missing": "feb missing.csv",
-    "digi": "Feb Digi Hits.csv",
-    "march": "query_result_2026-05-12T16_00_44.770167981+05_30.csv",
+# Logical dataset names (defined in config/dataset_manifest.local.json).
+DATASETS = {
+    "api": "feb_api_events",
+    "successful": "feb_successful_transactions",
+    "missing": "feb_missing_events",
+    "doc": "feb_doc_verification_events",
+    "march": "march_onboarding",
 }
 
 
 def load_csv(name, columns):
+    manifest = load_manifest()
+
     return pd.read_csv(
-        RAW / FILES[name],
+        dataset_file(manifest, DATASETS[name]),
         usecols=columns,
         dtype={"transaction_id": "string"},
         low_memory=False,
@@ -90,8 +96,8 @@ def main():
         ["transaction_id", "created_at", "event_time", "status_code"],
     )
 
-    digi = load_csv(
-        "digi",
+    doc = load_csv(
+        "doc",
         ["transaction_id", "created_at", "event_time", "status_code"],
     )
 
@@ -109,7 +115,7 @@ def main():
     api_ids = clean_ids(api["transaction_id"])
     successful_ids = clean_ids(successful["transaction_id"])
     missing_ids = clean_ids(missing["transaction_id"])
-    digi_ids = clean_ids(digi["transaction_id"])
+    doc_ids = clean_ids(doc["transaction_id"])
 
     print("=" * 60)
     print("UNMATCHED TRANSACTION INVESTIGATION")
@@ -126,13 +132,13 @@ def main():
         ["status"],
     )
 
-    # API transactions absent from Digi Hits
-    api_not_digi = api_ids - digi_ids
+    # API transactions absent from document-verification events
+    api_not_doc = api_ids - doc_ids
 
     report_group(
-        "API TRANSACTIONS ABSENT FROM DIGI HITS",
+        "API TRANSACTIONS ABSENT FROM DOCUMENT-VERIFICATION EVENTS",
         api,
-        api["transaction_id"].isin(api_not_digi),
+        api["transaction_id"].isin(api_not_doc),
         ["created_at", "event_time"],
         ["status_code"],
     )
@@ -148,12 +154,12 @@ def main():
         ["status_code"],
     )
 
-    # March IDs also appearing in February Digi Hits
+    # March IDs also appearing in February document-verification events
     march_ids = clean_ids(march["transaction_id"])
-    cross_period_ids = march_ids.intersection(digi_ids)
+    cross_period_ids = march_ids.intersection(doc_ids)
 
     report_group(
-        "MARCH TRANSACTIONS ALSO PRESENT IN FEBRUARY DIGI HITS",
+        "MARCH TRANSACTIONS ALSO PRESENT IN FEBRUARY DOCUMENT-VERIFICATION EVENTS",
         march,
         march["transaction_id"].isin(cross_period_ids),
         [
